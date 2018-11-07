@@ -17,7 +17,8 @@
 #include <GL/gl.h>
 
 #include "Image.h"
-#include "Polygon.h"
+#include "List.h"
+#include "Bresenham.h"
 
 Image *img;
 
@@ -31,6 +32,12 @@ Image *img;
 void display_CB()
 {
     glClear(GL_COLOR_BUFFER_BIT);
+
+
+
+	Color c = C_new(255,255,255);
+	I_changeColor(img, c);
+
 
 	I_draw(img);
 
@@ -117,9 +124,6 @@ int main(int argc, char **argv)
 			largeur = atoi(argv[1]);
 			hauteur = atoi(argv[2]);
 			img = I_new(largeur,hauteur);
-			Color rouge = C_new(100,0,0);
-			Color blanc = C_new(200,200,255);
-			I_checker(img,rouge,blanc,50);
 		}
 		int windowPosX = 100, windowPosY = 100;
 
@@ -145,38 +149,7 @@ int main(int argc, char **argv)
 		// glutMotionFunc(mouse_move_CB);
 		// glutPassiveMotionFunc(passive_mouse_move_CB);
 
-
-
-
-		Polygon* p = PolyNew();
-
-		Point p1;
-		p1.x = 2;
-		p1.y = 4;
-		Point p2;
-		p2.x = 8;
-		p2.y = 7;
-		Point p3;
-		p3.x = 1;
-		p3.y = 1;
-
-		PolyInsert(p, p1);
-		PolyInsert(p, p2);
-		PolyInsertAt(p, p3, 0);
-
-		// PolyDisplay(p);
-
-		// PolyDelete(p);
-
-		PolyDisplay(p);
-
-
-
-		PolyDestroy(p);
-		free(p);
-
-
-		// glutMainLoop();
+		glutMainLoop();
 
 		return 0;
 	}
