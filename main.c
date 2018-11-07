@@ -55,9 +55,9 @@ char get_line_intersection(Point a, Point b, Point c, Point d, Point* inter)
 			// Collision detected
 			inter = malloc(sizeof(Point));
 			if (inter != NULL)
-				inter->x = p0_x + (t * s1_x);
+				inter->x = a.x + (t * ab.y);
 			if (inter != NULL)
-				inter->x = p0_y + (t * s1_y);
+				inter->x = a.y + (t * ab.y);
 			return 1;
 		}
 	}
@@ -65,53 +65,79 @@ char get_line_intersection(Point a, Point b, Point c, Point d, Point* inter)
     return 0; // No collision
 }
 
+void sortIntersections(Point* inters, int n){
+	int i, j, min_idx;
+
+    // One by one move boundary of unsorted subarray 
+    for (i = 0; i < n-1; i++) 
+    { 
+        // Find the minimum element in unsorted array 
+        min_idx = i; 
+        for (j = i+1; j < n; j++) 
+          if (inters[j].x < inters[min_idx].x) 
+            min_idx = j; 
+  
+        // Swap the found minimum element with the first element
+		Point tmp = inters[min_idx];
+		inters[min_idx] = inters[i];
+		inters[i] = tmp;
+    }
+}
+
 void scan_line(Image* _img,List* _poly, Color _c){
 	Node* node = _poly->first;
 	Point intersections[_poly->size];
-	int intersections_count = 0;
 
 	//for all lines horizontally
 	for(int i=0; i<img->_height; ++i){
+		node = _poly->first;
+		int intersections_count = 0;
 
 		while(node && node->next){
 			//segment from node to node->next
 			
 			//intersection between horizontal line and current segment
-			Point* p;
+			Point* p = NULL;
 			Point left;
 			left.x = 0;
 			left.y = i;
 			Point right;
 			right.x = _img->_width;
 			right.y = i;
-			if(get_line_intersection(left, right, node->point, node->next->point, p)){
-				//intersection
-				intersections[intersections_count++] = *p;
-			}
+			// if(get_line_intersection(left, right, node->point, node->next->point, p)){
+			// 	//intersection
+			// 	intersections[intersections_count++] = *p;
+			// }
 			if(node->next) node = node->next;
 		}
 		if(node){
 			//segment from node to poly->first
 			
 			//intersection between horizontal line and current segment
-			Point* p;
+			Point* p = NULL;
 			Point left;
 			left.x = 0;
 			left.y = i;
 			Point right;
 			right.x = _img->_width;
 			right.y = i;
-			if(get_line_intersection(left, right, node->point, poly->first->point, p)){
-				//intersection
-				intersections[intersections_count++] = *p;
-			}
+			// if(get_line_intersection(left, right, node->point, poly->first->point, p)){
+			// 	//intersection
+			// 	intersections[intersections_count++] = *p;
+			// }
 		}
+
+		// //sort the intersections along the x
+		// sortIntersections(intersections, intersections_count);
+
+		// //draw the lines from the intersections
+		// for(int i=0; i<intersections_count-2; i+=2){
+		// 	I_bresenham(img, intersections[i].x, intersections[i].y, intersections[i+1].x, intersections[i+1].y);
+		// }
 	}
 
-	//draw the lines from the intersections
-	for(int i=0; i<intersections_count-1; i+=2){
-		
-	}
+
+
 
 }
 
@@ -124,7 +150,7 @@ void I_plotPoly(Image* _img, List* _poly, Color _c){
 		if(node->next) node = node->next;
 	}
 	//if closed or fill close the polygon
-	if(poly_state == closed | poly_state == filled && node)
+	if(((poly_state == closed) || (poly_state == filled)) && node)
 		I_bresenham(img, node->point.x, poly->first->point.x, node->point.y, poly->first->point.y);
 
 	//fill the polygon
