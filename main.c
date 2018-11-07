@@ -15,12 +15,124 @@
 #include <stdio.h>
 #include <GL/glut.h>
 #include <GL/gl.h>
+#include <stdbool.h>
 
 #include "Image.h"
 #include "List.h"
 #include "Bresenham.h"
 
 Image *img;
+List* poly;
+enum state{
+	opened,
+	closed,
+	filled
+};
+enum state poly_state = opened;
+Color white;
+Color black;
+Color red;
+Color green;
+Color blue;
+
+// Returns 1 if the lines intersect, otherwise 0. In addition, if the lines 
+// intersect the intersection point may be stored in the floats i_x and i_y.
+//taken from internet
+char get_line_intersection(Point a, Point b, Point c, Point d, Point* inter)
+{
+    Point ab, cd;
+    ab.x = b.x - a.x;     ab.y = b.y - a.y;
+    cd.x = d.x - c.x;     cd.y = d.y - c.y;
+
+    float s, t;
+	float den = (-cd.x * ab.y + ab.x * cd.y);
+	if(den != 0){
+		s = (-ab.y * (a.x - c.x) + ab.x * (a.y - c.y)) / den;
+		t = ( cd.x * (a.y - c.y) - cd.y * (a.x - c.x)) / den;
+
+		if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+		{
+			// Collision detected
+			inter = malloc(sizeof(Point));
+			if (inter != NULL)
+				inter->x = p0_x + (t * s1_x);
+			if (inter != NULL)
+				inter->x = p0_y + (t * s1_y);
+			return 1;
+		}
+	}
+
+    return 0; // No collision
+}
+
+void scan_line(Image* _img,List* _poly, Color _c){
+	Node* node = _poly->first;
+	Point intersections[_poly->size];
+	int intersections_count = 0;
+
+	//for all lines horizontally
+	for(int i=0; i<img->_height; ++i){
+
+		while(node && node->next){
+			//segment from node to node->next
+			
+			//intersection between horizontal line and current segment
+			Point* p;
+			Point left;
+			left.x = 0;
+			left.y = i;
+			Point right;
+			right.x = _img->_width;
+			right.y = i;
+			if(get_line_intersection(left, right, node->point, node->next->point, p)){
+				//intersection
+				intersections[intersections_count++] = *p;
+			}
+			if(node->next) node = node->next;
+		}
+		if(node){
+			//segment from node to poly->first
+			
+			//intersection between horizontal line and current segment
+			Point* p;
+			Point left;
+			left.x = 0;
+			left.y = i;
+			Point right;
+			right.x = _img->_width;
+			right.y = i;
+			if(get_line_intersection(left, right, node->point, poly->first->point, p)){
+				//intersection
+				intersections[intersections_count++] = *p;
+			}
+		}
+	}
+
+	//draw the lines from the intersections
+	for(int i=0; i<intersections_count-1; i+=2){
+		
+	}
+
+}
+
+void I_plotPoly(Image* _img, List* _poly, Color _c){
+	I_changeColor(img, _c);
+	
+	Node* node = poly->first;
+	while(node && node->next){
+		I_bresenham(img, node->point.x, node->next->point.x, node->point.y, node->next->point.y);
+		if(node->next) node = node->next;
+	}
+	//if closed or fill close the polygon
+	if(poly_state == closed | poly_state == filled && node)
+		I_bresenham(img, node->point.x, poly->first->point.x, node->point.y, poly->first->point.y);
+
+	//fill the polygon
+	if(poly_state == filled){
+		scan_line(_img, _poly, red);
+	}
+
+}
 
 //------------------------------------------------------------------
 //	C'est le display callback. A chaque fois qu'il faut
@@ -33,11 +145,9 @@ void display_CB()
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
+	I_fill(img, black);
 
-
-	Color c = C_new(255,255,255);
-	I_changeColor(img, c);
-
+	I_plotPoly(img, poly, white);	
 
 	I_draw(img);
 
@@ -52,8 +162,13 @@ void display_CB()
 
 void mouse_CB(int button, int state, int x, int y)
 {
-	if((button==GLUT_LEFT_BUTTON)&&(state==GLUT_DOWN))
-		I_focusPoint(img,x,img->_height-y);
+	if((button==GLUT_LEFT_BUTTON)&&(state==GLUT_DOWN)){
+		// I_focusPoint(img,x,img->_height-y);
+		Point p;
+		p.x = x;
+		p.y = img->_height - y;
+		ListInsert(poly, p);
+	}
 
 	glutPostRedisplay();
 }
@@ -72,6 +187,18 @@ void keyboard_CB(unsigned char key, int x, int y)
 	case 'z' : I_zoom(img,2.0); break;
 	case 'Z' : I_zoom(img,0.5); break;
 	case 'i' : I_zoomInit(img); break;
+	case 'c' :
+		if(poly_state>=2)
+			poly_state = opened;
+		else{
+			if(poly_state == opened)
+				poly_state = closed;
+			else
+				poly_state = opened;
+		}
+
+		break;
+	case 'f' : poly_state = filled; break;
 	default : fprintf(stderr,"keyboard_CB : %d : unknown key.\n",key);
 	}
 	glutPostRedisplay();
@@ -126,6 +253,11 @@ int main(int argc, char **argv)
 			img = I_new(largeur,hauteur);
 		}
 		int windowPosX = 100, windowPosY = 100;
+		white = C_new(255,255,255);
+		black = C_new(0,0,0);
+		red = C_new(255,0,0);
+		green = C_new(0,255,0);
+		blue = C_new(0,0,255);
 
 		glutInitWindowSize(largeur,hauteur);
 		glutInitWindowPosition(windowPosX,windowPosY);
@@ -149,7 +281,10 @@ int main(int argc, char **argv)
 		// glutMotionFunc(mouse_move_CB);
 		// glutPassiveMotionFunc(passive_mouse_move_CB);
 
+		poly = ListNew();
 		glutMainLoop();
+		ListDestroy(poly);
+		free(poly);
 
 		return 0;
 	}
