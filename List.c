@@ -170,6 +170,8 @@ void ListDelete(List* _list){
             tmp = _list->current->next;
         else
             tmp = _list->current->prev;
+        if(_list->first == _list->current)
+            _list->first = tmp;
         free(_list->current);
         _list->current = tmp;
         _list->size--;

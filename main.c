@@ -29,11 +29,20 @@ enum state{
 	filled
 };
 enum state poly_state = opened;
+enum mode{
+	insert,
+	vertex,
+	edge
+};
+enum mode current_mode = insert;
 Color white;
 Color black;
 Color red;
 Color green;
 Color blue;
+Color insert_color;
+Color vertex_color;
+Color edge_color;
 
 // Returns 1 if the lines intersect, otherwise 0. In addition, if the lines 
 // intersect the intersection point may be stored in the floats i_x and i_y.
@@ -53,11 +62,10 @@ char get_line_intersection(Point a, Point b, Point c, Point d, Point* inter)
 		if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
 		{
 			// Collision detected
-			inter = malloc(sizeof(Point));
 			if (inter != NULL)
-				inter->x = a.x + (t * ab.y);
+				inter->x = a.x + (t * ab.x);
 			if (inter != NULL)
-				inter->x = a.y + (t * ab.y);
+				inter->y = a.y + (t * ab.y);
 			return 1;
 		}
 	}
@@ -97,51 +105,90 @@ void scan_line(Image* _img,List* _poly, Color _c){
 			//segment from node to node->next
 			
 			//intersection between horizontal line and current segment
-			Point* p = NULL;
+			Point* p = malloc(sizeof(Point));
 			Point left;
 			left.x = 0;
 			left.y = i;
 			Point right;
 			right.x = _img->_width;
 			right.y = i;
-			// if(get_line_intersection(left, right, node->point, node->next->point, p)){
-			// 	//intersection
-			// 	intersections[intersections_count++] = *p;
-			// }
+			
+			if(get_line_intersection(left, right, node->point, node->next->point, p)){
+				//intersection
+				intersections[intersections_count++] = *p;
+			}
+			free(p);
 			if(node->next) node = node->next;
 		}
 		if(node){
 			//segment from node to poly->first
 			
 			//intersection between horizontal line and current segment
-			Point* p = NULL;
+			Point* p = malloc(sizeof(Point));
 			Point left;
 			left.x = 0;
 			left.y = i;
 			Point right;
 			right.x = _img->_width;
 			right.y = i;
-			// if(get_line_intersection(left, right, node->point, poly->first->point, p)){
-			// 	//intersection
-			// 	intersections[intersections_count++] = *p;
-			// }
+			if(get_line_intersection(left, right, node->point, poly->first->point, p)){
+				//intersection
+				intersections[intersections_count++] = *p;
+			}
+			free(p);
 		}
 
-		// //sort the intersections along the x
-		// sortIntersections(intersections, intersections_count);
+		//sort the intersections along the x
+		sortIntersections(intersections, intersections_count);
 
-		// //draw the lines from the intersections
-		// for(int i=0; i<intersections_count-2; i+=2){
-		// 	I_bresenham(img, intersections[i].x, intersections[i].y, intersections[i+1].x, intersections[i+1].y);
-		// }
+
+
+		int nb_lines = 0;
+		//draw the lines from the intersections
+		for(int j=0; j<intersections_count-1; j+=2){
+			nb_lines++;
+			I_bresenham(img, intersections[j].x, intersections[j+1].x, intersections[j].y, intersections[j+1].y);
+		}
+
+		if(intersections_count > 2){
+			for(int j=0; j<intersections_count; j++){
+				nb_lines++;
+				printf("inter non computed : %d , %d\n", intersections[j].x, intersections[j].y);
+			}
+		}
 	}
-
-
-
 
 }
 
+void I_plotPoints(Image* _img, List* _poly, Color _cp, Color _cc){
+	Node* node = _poly->first;
+	
+	I_changeColor(img, _cp);
+	while(node){
+
+		for(int x=node->point.x-2; x<=node->point.x+2; x++){
+			for(int y=node->point.y-2; y<=node->point.y+2; y++){
+				I_plot(_img, x, y);
+			}
+		}
+
+		if(node == _poly->current){
+			I_changeColor(img, _cc);
+
+			I_bresenham(_img, node->point.x-3, node->point.x+3, node->point.y-3, node->point.y-3);
+			I_bresenham(_img, node->point.x-3, node->point.x+3, node->point.y+3, node->point.y+3);
+
+			I_bresenham(_img, node->point.x-3, node->point.x-3, node->point.y-3, node->point.y+3);
+			I_bresenham(_img, node->point.x+3, node->point.x+3, node->point.y-3, node->point.y+3);
+
+			I_changeColor(img, _cp);
+		}
+		node = node->next;
+	}
+}
+
 void I_plotPoly(Image* _img, List* _poly, Color _c){
+	I_plotPoints(_img, _poly, green, red);
 	I_changeColor(img, _c);
 	
 	Node* node = poly->first;
@@ -157,7 +204,23 @@ void I_plotPoly(Image* _img, List* _poly, Color _c){
 	if(poly_state == filled){
 		scan_line(_img, _poly, red);
 	}
+}
 
+void I_plotMode(Image* _img){
+	switch(current_mode){
+		case insert:
+			I_changeColor(_img, insert_color);
+			break;
+		case vertex:
+			I_changeColor(_img, vertex_color);
+			break;
+		case edge:
+			I_changeColor(_img, edge_color);
+			break;
+	}
+	for(int i=0; i<30; ++i)
+		I_bresenham(_img, 0, 30, i, i);
+		
 }
 
 //------------------------------------------------------------------
@@ -171,9 +234,12 @@ void display_CB()
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
-	I_fill(img, black);
+	I_fill(img, white);
 
-	I_plotPoly(img, poly, white);	
+	I_plotMode(img);
+
+	I_plotPoly(img, poly, black);
+
 
 	I_draw(img);
 
@@ -188,7 +254,7 @@ void display_CB()
 
 void mouse_CB(int button, int state, int x, int y)
 {
-	if((button==GLUT_LEFT_BUTTON)&&(state==GLUT_DOWN)){
+	if((button==GLUT_LEFT_BUTTON)&&(state==GLUT_DOWN)&&current_mode==insert){
 		// I_focusPoint(img,x,img->_height-y);
 		Point p;
 		p.x = x;
@@ -210,9 +276,9 @@ void keyboard_CB(unsigned char key, int x, int y)
 	switch(key)
 	{
 	case 27 : exit(1); break;
-	case 'z' : I_zoom(img,2.0); break;
-	case 'Z' : I_zoom(img,0.5); break;
-	case 'i' : I_zoomInit(img); break;
+	case 'i' : current_mode = insert; break;
+	case 'v' : current_mode = vertex; break;
+	case 'e' : current_mode = edge; break;
 	case 'c' :
 		if(poly_state>=2)
 			poly_state = opened;
@@ -225,6 +291,8 @@ void keyboard_CB(unsigned char key, int x, int y)
 
 		break;
 	case 'f' : poly_state = filled; break;
+	//suppr
+	case 127 : ListDelete(poly); break;
 	default : fprintf(stderr,"keyboard_CB : %d : unknown key.\n",key);
 	}
 	glutPostRedisplay();
@@ -248,6 +316,10 @@ void special_CB(int key, int x, int y)
 	case GLUT_KEY_DOWN  : I_move(img,0,-d); break;
 	case GLUT_KEY_LEFT  : I_move(img,d,0); break;
 	case GLUT_KEY_RIGHT : I_move(img,-d,0); break;
+	//page_up
+	case 104 : ListNext(poly); break;
+	//page_down
+	case 105 : ListPrev(poly); break;
 	default : fprintf(stderr,"special_CB : %d : unknown key.\n",key);
 	}
 	glutPostRedisplay();
@@ -284,6 +356,9 @@ int main(int argc, char **argv)
 		red = C_new(255,0,0);
 		green = C_new(0,255,0);
 		blue = C_new(0,0,255);
+		insert_color = C_new(255,255,0);
+		vertex_color = C_new(0,255,255);
+		edge_color = C_new(255,0,255);
 
 		glutInitWindowSize(largeur,hauteur);
 		glutInitWindowPosition(windowPosX,windowPosY);
@@ -309,6 +384,30 @@ int main(int argc, char **argv)
 
 		poly = ListNew();
 		glutMainLoop();
+
+
+		//pb deletecurrent with last || first node
+
+		// Point p1;
+		// p1.x = 1;
+		// p1.y = 1;
+		// Point p2;
+		// p2.x = 2;
+		// p2.y = 2;
+		// Point p3;
+		// p3.x = 3;
+		// p3.y = 3;
+
+		// ListInsert(poly, p1);
+		// ListInsert(poly, p2);
+		// ListInsert(poly, p3);
+
+		// ListDisplay(poly);
+
+		// ListDelete(poly);
+
+		// ListDisplay(poly);
+
 		ListDestroy(poly);
 		free(poly);
 
