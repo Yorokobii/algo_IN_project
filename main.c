@@ -21,6 +21,7 @@
 #include "List.h"
 #include "Bresenham.h"
 
+int largeur, hauteur;
 Image *img;
 List* poly;
 enum state{
@@ -168,11 +169,16 @@ void I_plotPoints(Image* _img, List* _poly, Color _cp, Color _cc){
 
 		for(int x=node->point.x-2; x<=node->point.x+2; x++){
 			for(int y=node->point.y-2; y<=node->point.y+2; y++){
-				I_plot(_img, x, y);
+				//first point red
+				if(node == _poly->first)
+					I_plotColor(_img, x, y, red);
+				else if(ListIsLast(_poly, node))
+					I_plotColor(_img, x, y, blue);
+				else I_plot(_img, x, y);
 			}
 		}
 
-		if(node == _poly->current){
+		if(node == _poly->current && current_mode == vertex){
 			I_changeColor(img, _cc);
 
 			I_bresenham(_img, node->point.x-3, node->point.x+3, node->point.y-3, node->point.y-3);
@@ -193,13 +199,21 @@ void I_plotPoly(Image* _img, List* _poly, Color _c){
 	
 	Node* node = poly->first;
 	while(node && node->next){
+		if(current_mode == edge && node == _poly->current)
+			I_changeColor(img, red); // change color for selected edge
+		else
+			I_changeColor(img, _c); // change color back
 		I_bresenham(img, node->point.x, node->next->point.x, node->point.y, node->next->point.y);
 		if(node->next) node = node->next;
 	}
 	//if closed or fill close the polygon
-	if(((poly_state == closed) || (poly_state == filled)) && node)
+	if(((poly_state == closed) || (poly_state == filled)) && node){
+		if(current_mode == edge && node == _poly->current)
+			I_changeColor(img, red); // change color for selected edge
+		else
+			I_changeColor(img, _c); // change color back
 		I_bresenham(img, node->point.x, poly->first->point.x, node->point.y, poly->first->point.y);
-
+	}
 	//fill the polygon
 	if(poly_state == filled){
 		scan_line(_img, _poly, red);
@@ -221,6 +235,27 @@ void I_plotMode(Image* _img){
 	for(int i=0; i<30; ++i)
 		I_bresenham(_img, 0, 30, i, i);
 		
+}
+
+// returns the closest vertex index of poly from _x and _y
+//acts also as closestEdge in my implementation ????? MEH
+int closestVertex(List* _poly, int _x, int _y){
+	Node* node = _poly->first;
+	int index = 0;
+	float dist = sqrt((node->point.x - _x)*(node->point.x - _x) + (node->point.y - _y)*(node->point.y - _y));
+	node = node->next;
+	float while_dist;
+	int i = 0;
+	while(node){
+		i++;
+		while_dist = sqrt((node->point.x - _x)*(node->point.x - _x) + (node->point.y - _y)*(node->point.y - _y));
+		if(while_dist < dist){
+			dist = while_dist;
+			index = i;
+		}
+		node = node->next;
+	}
+	return index+1;
 }
 
 //------------------------------------------------------------------
@@ -254,11 +289,27 @@ void display_CB()
 
 void mouse_CB(int button, int state, int x, int y)
 {
-	if((button==GLUT_LEFT_BUTTON)&&(state==GLUT_DOWN)&&current_mode==insert){
-		// I_focusPoint(img,x,img->_height-y);
+	if((button==GLUT_LEFT_BUTTON)&&(state==GLUT_DOWN)){
+		if(current_mode==insert){
+			// I_focusPoint(img,x,img->_height-y);
+			Point p;
+			p.x = x;
+			p.y = img->_height - y;
+			ListInsertAt(poly, p, poly->size);
+		}
+		else{ // vertex or edge select closestVertex
+			ListSelectCurrent(poly, closestVertex(poly, x, img->_height - y));
+		}
+	}
+
+	if((button==GLUT_MIDDLE_BUTTON)&&(state==GLUT_DOWN)&&current_mode==edge&&poly->size > 2){
 		Point p;
-		p.x = x;
-		p.y = img->_height - y;
+		p.x = poly->current->next ?
+				((poly->current->point.x + poly->current->next->point.x) / 2) :
+				((poly->current->point.x + poly->first->point.x) / 2);
+		p.y = poly->current->next ?
+				((poly->current->point.y + poly->current->next->point.y) / 2) :
+				((poly->current->point.y + poly->first->point.y) / 2);
 		ListInsert(poly, p);
 	}
 
@@ -273,9 +324,22 @@ void mouse_CB(int button, int state, int x, int y)
 void keyboard_CB(unsigned char key, int x, int y)
 {
 	// fprintf(stderr,"key=%d\n",key);
+		Point tmp;
 	switch(key)
 	{
 	case 27 : exit(1); break;
+	case 'g' : 
+		if(!ListIsLast(poly, poly->current) || poly_state != opened){
+			tmp.x = poly->current->next ?
+					((poly->current->point.x + poly->current->next->point.x) / 2) :
+					((poly->current->point.x + poly->first->point.x) / 2);
+			tmp.y = poly->current->next ?
+					((poly->current->point.y + poly->current->next->point.y) / 2) :
+					((poly->current->point.y + poly->first->point.y) / 2);
+			ListNext(poly); //to insert after the current and not before
+			ListInsert(poly, tmp);
+		}
+		break;
 	case 'i' : current_mode = insert; break;
 	case 'v' : current_mode = vertex; break;
 	case 'e' : current_mode = edge; break;
@@ -292,7 +356,7 @@ void keyboard_CB(unsigned char key, int x, int y)
 		break;
 	case 'f' : poly_state = filled; break;
 	//suppr
-	case 127 : ListDelete(poly); break;
+	case 127 : if(current_mode == vertex) ListDelete(poly); break;
 	default : fprintf(stderr,"keyboard_CB : %d : unknown key.\n",key);
 	}
 	glutPostRedisplay();
@@ -308,18 +372,32 @@ void special_CB(int key, int x, int y)
 {
 	// int mod = glutGetModifiers();
 
-	int d = 10;
-
 	switch(key)
 	{
-	case GLUT_KEY_UP    : I_move(img,0,d); break;
-	case GLUT_KEY_DOWN  : I_move(img,0,-d); break;
-	case GLUT_KEY_LEFT  : I_move(img,d,0); break;
-	case GLUT_KEY_RIGHT : I_move(img,-d,0); break;
+	case GLUT_KEY_UP    :
+		if(current_mode == vertex) 
+			if(poly->current->point.y < hauteur-1)
+				poly->current->point.y++;
+		break;
+	case GLUT_KEY_DOWN  :
+		if(current_mode == vertex) 
+			if(poly->current->point.y > 1)
+				poly->current->point.y--;
+		break;
+	case GLUT_KEY_LEFT  :
+		if(current_mode == vertex) 
+			if(poly->current->point.x > 1)
+				poly->current->point.x--;
+		break;
+	case GLUT_KEY_RIGHT :
+		if(current_mode == vertex) 
+			if(poly->current->point.x < largeur-1)
+				poly->current->point.x++;
+		break;
 	//page_up
-	case 104 : ListNext(poly); break;
+	case 104 : if(current_mode == vertex || current_mode == edge) ListNext(poly); break;
 	//page_down
-	case 105 : ListPrev(poly); break;
+	case 105 : if(current_mode == vertex || current_mode == edge) ListPrev(poly); break;
 	default : fprintf(stderr,"special_CB : %d : unknown key.\n",key);
 	}
 	glutPostRedisplay();
@@ -337,7 +415,6 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		int largeur, hauteur;
 		if(argc==2)
 		{
 			img = I_read(argv[1]);
@@ -398,7 +475,7 @@ int main(int argc, char **argv)
 		// p3.x = 3;
 		// p3.y = 3;
 
-		// ListInsert(poly, p1);
+		// ListInsertAt(poly, p1, 0);
 		// ListInsert(poly, p2);
 		// ListInsert(poly, p3);
 

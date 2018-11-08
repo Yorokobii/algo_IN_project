@@ -1,6 +1,8 @@
 #ifndef LIST_H
 #define LIST_H
 
+#include <stdbool.h>
+
 /* List structure declaration*/
 
 typedef struct Point{
@@ -35,10 +37,18 @@ void ListNext(List*);
 //prev
 void ListPrev(List*);
 
+//select current
+void ListSelectCurrent(List*, int);
+
 //get element at index
 Point ListGetElementAt(List*, int);
 
+//returns the node at index
+Node* ListGetNodeAt(List* _list, int index);
+
 int ListGetIndex(List*, Node*);
+
+bool ListIsLast(List*, Node*);
 
 //insert to current and return the new current
 Node* ListInsert(List*, Point);

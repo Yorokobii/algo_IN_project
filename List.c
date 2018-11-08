@@ -44,17 +44,30 @@ void ListDestroy(List* _list){
 //next
 void ListNext(List* _list){
     //empty case
-    if(_list->first)
+    if(_list->first){
         if(_list->current->next) 
             _list->current = _list->current->next;
+        else
+            _list->current = _list->first;
+    }
 }
 
 //prev
 void ListPrev(List* _list){
     //empty case
-    if(_list->first)
+    if(_list->first){
         if(_list->current->prev)
             _list->current = _list->current->prev;
+        else
+            while(_list->current->next)
+                _list->current = _list->current->next;
+    }
+}
+
+//select current
+void ListSelectCurrent(List* _list, int index){
+    if(index >=0 && index < _list->size+1)
+        _list->current = ListGetNodeAt(_list, index);
 }
 
 //get element at index
@@ -74,6 +87,20 @@ Point ListGetElementAt(List* _list, int index){
     }
 }
 
+//get element at index
+Node* ListGetNodeAt(List* _list, int index){
+    if(index > 0 && index <= _list->size){
+        Node* n = _list->first;
+        int i=0;
+        for(;i<index-1; ++i)
+            n = n->next;
+        return n;
+    }
+    else{
+        return NULL;
+    }
+}
+
 int ListGetIndex(List* l, Node* n){
     int i = 0;
     while((void*)l != (void*)n){
@@ -83,6 +110,13 @@ int ListGetIndex(List* l, Node* n){
         n = n->next;
     }
     return i;
+}
+
+bool ListIsLast(List* _list, Node* node){
+    Node* tmp = _list->first;
+    while(tmp->next)
+        tmp = tmp->next;
+    return tmp == node;
 }
 
 //insert to current and return the current new
@@ -132,6 +166,7 @@ void ListInsertAt(List* _list, Point _point, int _index){
         add_node->prev = NULL;
         if(!_list->size){//if empty
             add_node->next = NULL;
+            _list->current = add_node;
         }
         else{
             add_node->next = _list->first;
@@ -153,7 +188,7 @@ void ListInsertAt(List* _list, Point _point, int _index){
         _list->size++;
     }
     //update current
-    if(add_node)
+    if(add_node && _list->current)
         if(ListGetIndex(_list, add_node) < ListGetIndex(_list, _list->current))
             _list->current = _list->current->prev;
 }
