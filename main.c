@@ -93,54 +93,16 @@ void sortIntersections(Point* inters, int n){
     }
 }
 
-int searchPointIndex(List* _l, Point _p, bool interactions_done[]){
-	Node* node = _l->first;
-	int i = 0;
-	while(node->point.x != _p.x && node->point.y != _p.y && interactions_done[i]){
-		if(node->next)
-			return -1;
-		i++;
-		node = node->next;
-	}
-	return i;
-}
-
-bool checkRemoveDoublePoints(Node* _node){
-	//if the point before and after this one are on diferent sides (compared to the y of the current)
-	// count as double
-	if(!_node->prev){//if first point use the last and the second
-		//get last
-		Node* node = poly->first;
-		while(node->next)
-			node = node->next;
-		return ((_node->point.y - _node->prev->point.y) <= 0 && (_node->point.y - node->point.y) >= 0)
-		|| ((_node->point.y - _node->prev->point.y) >= 0 && (_node->point.y - node->point.y) <= 0);
-	}
-	else if(!_node->next){//if last use the one before and the first
-		return ((_node->point.y - _node->prev->point.y) <= 0 && (_node->point.y - poly->first->point.y) >= 0)
-		|| ((_node->point.y - _node->prev->point.y) >= 0 && (_node->point.y - poly->first->point.y) <= 0);
-	}
-	else{
-		return ((_node->point.y - _node->prev->point.y) <= 0 && (_node->point.y - _node->next->point.y) >= 0)
-		|| ((_node->point.y - _node->prev->point.y) >= 0 && (_node->point.y - _node->next->point.y) <= 0);
-	}
-}
-
 void scan_line(Image* _img,List* _poly, Color _c){
 	Node* node = _poly->first;
 	Point intersections[_poly->size];
-	Point intersections_after_clean[_poly->size];
-	bool intersections_done[_poly->size];
-	//initialize intersections_done
-	for(int j=0; j<_poly->size; ++j){
-		intersections_done[j] = false;
-	}
 
 	//for all lines horizontally
 	for(int i=0; i<img->_height; ++i){
 		node = _poly->first;
 		int intersections_count = 0;
-		int intersections_after_clean_size = 0;
+
+		bool point_inter = false;
 
 		while(node && node->next){
 			//segment from node to node->next
@@ -156,14 +118,24 @@ void scan_line(Image* _img,List* _poly, Color _c){
 			
 			if(get_line_intersection(left, right, node->point, node->next->point, p)){
 				//intersection
-				intersections[intersections_count++] = *p;
+				//check if the intersection is a point of the polygon
+				if(p->x == node->point.x && p->y == node->point.y &&
+				(node->point.y > node->next->point.y)){
+					//do nothing
+				}
+				else if(p->x == node->next->point.x && p->y == node->next->point.y &&
+				(node->next->point.y > node->point.y)){
+					// do nothing
+				}
+				else
+					intersections[intersections_count++] = *p;
 			}
 			free(p);
 			if(node->next) node = node->next;
 		}
-		if(node){
+		if(node && !point_inter){
 			//segment from node to poly->first
-			
+
 			//intersection between horizontal line and current segment
 			Point* p = malloc(sizeof(Point));
 			Point left;
@@ -174,63 +146,33 @@ void scan_line(Image* _img,List* _poly, Color _c){
 			right.y = i;
 			if(get_line_intersection(left, right, node->point, poly->first->point, p)){
 				//intersection
-				intersections[intersections_count++] = *p;
+				if(p->x == node->point.x && p->y == node->point.y &&
+				(node->point.y > poly->first->point.y)){
+					//do nothing
+				}
+				else if(p->x == poly->first->point.x && p->y == poly->first->point.y &&
+				(poly->first->point.y > node->point.y)){
+					//do nothing
+				}
+				else
+					intersections[intersections_count++] = *p;
 			}
 			free(p);
 		}
 
-		//search for duplicate intersections (point intersection)
-		// check if the intersection is going in the polygon
-		// if it is remove the point from the tab
-		// quite gross sorry
-		
-		// this technic doesn't take in count the case where two diferent points are in the same
-		// coordinates in all cases I guess, even though I do it before sorting so it
-		// should be okay in most of the cases
 		int j;
-
-		// don't have time to debug it...
-		for(j=0; j<intersections_count; j++)
-			intersections_after_clean[intersections_after_clean_size++] = intersections[j];
-
-		// for(j=0; j<intersections_count-1; ++j){
-		// 	//if two same points
-		// 	if(intersections[j].x == intersections [j+1].x
-		// 		&& intersections[j].y == intersections [j+1].y){
-					
-		// 			// search for the point
-		// 			int index = searchPointIndex(_poly, intersections[j], intersections_done);
-		// 			if(index != -1){
-		// 				intersections_done[index] = true;
-
-		// 				if(checkRemoveDoublePoints(ListGetNodeAt(_poly, index))){
-		// 					intersections_after_clean[intersections_after_clean_size++] = intersections[j];
-		// 					j++; // jump one element
-		// 				}
-		// 			}
-		// 			else{ // if point was not found
-		// 				intersections_after_clean[intersections_after_clean_size++] = intersections[j];
-		// 				j++; // jump one element
-		// 			}
-		// 		}
-		// 	else{
-		// 		//just add the point
-		// 		intersections_after_clean[intersections_after_clean_size++] = intersections[j];
-		// 	}
-		// }
-
 		//sort the intersections along the x
-		sortIntersections(intersections_after_clean, intersections_after_clean_size);
+		sortIntersections(intersections, intersections_count);
 
 		int nb_lines = 0;
 		//draw the lines from the intersections
-		for(j=0; j<intersections_after_clean_size-1; j+=2){
+		for(j=0; j<intersections_count-1; j+=2){
 			nb_lines++;
-			I_bresenham(img, intersections_after_clean[j].x, intersections_after_clean[j+1].x, intersections_after_clean[j].y, intersections_after_clean[j+1].y);
+			I_bresenham(img, intersections[j].x, intersections[j+1].x, intersections[j].y, intersections[j+1].y);
 		}
 
-		if(intersections_after_clean_size > 2){
-			for(j=0; j<intersections_after_clean_size; j++){
+		if(intersections_count > 2){
+			for(j=0; j<intersections_count; j++){
 				nb_lines++;
 			}
 		}
@@ -291,6 +233,9 @@ void I_plotPoly(Image* _img, List* _poly, Color _c){
 			I_changeColor(img, _c); // change color back
 		I_bresenham(img, node->point.x, poly->first->point.x, node->point.y, poly->first->point.y);
 	}
+
+
+	I_changeColor(img, _c);
 	//fill the polygon
 	if(poly_state == filled){
 		scan_line(_img, _poly, red);
